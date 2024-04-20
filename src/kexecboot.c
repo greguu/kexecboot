@@ -242,6 +242,7 @@ void start_kernel(struct params_t *params, int choice)
 		free(load_argv);
 		return;
 	}
+	log_msg(lg, "DEBUG: idx=0");
 
 	/*len of following strings is known at compile time */
 	idx = 0;
@@ -256,6 +257,8 @@ void start_kernel(struct params_t *params, int choice)
 
 	load_argv[idx] = strdup("-d");
 	exec_argv[idx] = strdup("-e");
+	log_msg(lg, "DEBUG: idx=1");
+
 	idx++;
 
 #ifdef MEM_MIN
@@ -274,6 +277,7 @@ void start_kernel(struct params_t *params, int choice)
 	load_argv[idx] = strdup("-l");
 #endif
 	idx++;
+	log_msg(lg, "DEBUG: idx=2");
 
 #ifdef USE_ATAGS
 	load_argv[idx] = strdup("--atags");
@@ -306,9 +310,11 @@ void start_kernel(struct params_t *params, int choice)
 	if (item->device) {
 		/* default device to mount */
 		strcpy(mount_dev, item->device);
+		log_msg(lg, "DEBUG: mount_dev %s",mount_dev);
 
 		/* default fstype to mount */
 		strcpy(mount_fstype, item->fstype);
+		log_msg(lg, "DEBUG: mount_fstype %s",mount_fstype);
 
 		/* Overwrite if CMDLINE is configured, append if APPEND is configured */
 		if (item->cmdline) {
@@ -321,6 +327,7 @@ void start_kernel(struct params_t *params, int choice)
 
 			strcpy(cmdline_arg, str_cmdline_start);	/* --command-line= */
 			strcat(cmdline_arg, "root=");
+			log_msg(lg, "DEBUG: str_cmdline_start %s",str_cmdline_start);
 
 			if (item->fstype) {
 
@@ -363,13 +370,15 @@ void start_kernel(struct params_t *params, int choice)
 	for(u = 0; u < idx; u++) {
 		DPRINTF("load_argv[%d]: %s", u, load_argv[u]);
 	}
-
+	log_msg(lg, "DEBUG: Mount boot device");
 	/* Mount boot device */
 	if ( -1 == mount(mount_dev, mount_point, mount_fstype,
 			MS_RDONLY, NULL) ) {
 		perror("Can't mount boot device");
 		exit(-1);
 	}
+
+	log_msg(lg, "DEBUG: Load Kernel");
 
 	/* Load kernel */
 	n = fexecw(load_argv[0], (char *const *)load_argv, envp);
@@ -378,9 +387,16 @@ void start_kernel(struct params_t *params, int choice)
 		exit(-1);
 	}
 
+	log_msg(lg, "DEBUG: Umount Mount point");
+
 	umount(mount_point);
 
+	log_msg(lg, "DEBUG: Dispose cmdline_arg");
+
 	dispose(cmdline_arg);
+
+	log_msg(lg, "DEBUG: check /proc/sys/net");
+
 
 	/* Check /proc/sys/net presence */
 	if ( -1 == stat("/proc/sys/net", &sinfo) ) {
@@ -392,6 +408,8 @@ void start_kernel(struct params_t *params, int choice)
 			perror("Can't stat /proc/sys/net");
 		}
 	}
+	log_msg(lg, "DEBUG: Mount boot device %s %s %s %s", exec_argv[0],
+			exec_argv[1], exec_argv[2], exec_argv[3]);
 
 	DPRINTF("exec_argv: %s, %s, %s, %s", exec_argv[0],
 			exec_argv[1], exec_argv[2], exec_argv[3]);
@@ -668,6 +686,8 @@ int fill_menu(struct params_t *params)
 				}
 			}
 		}
+		log_msg(lg, "DEBUG: max_pri - %i",max_pri);
+		log_msg(lg, "DEBUG: max_i - %i",max_i);
 
 		if (max_pri >= 0) {
 			a[max_i] = 1;	/* Mark item as processed */
@@ -956,6 +976,12 @@ int process_ctx_textview(struct params_t *params, int action) {
 		lg->current_line_no = 0;
 		params->context = KX_CTX_MENU;
 		break;
+#ifdef USE_TIMEOUT
+	case A_TIMEOUT:		// timeout was reached - boot 1st kernel if exists
+		lg->current_line_no = 1;
+		rc = 0;
+		break;
+#endif
 	case A_EXIT:
 		if (initmode) break;	// don't exit if we are init
 	case A_ERROR:
@@ -978,10 +1004,12 @@ void draw_ctx_textview(struct params_t *params)
 
 
 /* Main event loop */
-int do_main_loop(struct params_t *params, kx_inputs *inputs)
+//int do_main_loop(struct params_t *params, kx_inputs *inputs)
+int do_main_loop(struct params_t *params)
 {
 	int rc = 0;
 	int action;
+
 
 	/* Start with menu context */
 	params->context = KX_CTX_MENU;
@@ -990,7 +1018,8 @@ int do_main_loop(struct params_t *params, kx_inputs *inputs)
 	/* Event loop */
 	do {
 		/* Read events */
-		action = inputs_process(inputs);
+//		action = inputs_process(inputs);
+		action = A_TIMEOUT;
 		if (action != A_NONE) {
 
 			/* Process events in current context */
@@ -1021,8 +1050,9 @@ int do_main_loop(struct params_t *params, kx_inputs *inputs)
 	} while (rc > 0);
 
 	/* If item is selected then return his id */
+//	if (0 == rc) rc = params->menu->current->current->id;
 	if (0 == rc) rc = params->menu->current->current->id;
-
+	log_msg(lg, "DEBUG: finished do_main_loop - %d", rc);
 	return rc;
 }
 
@@ -1082,24 +1112,23 @@ int main(int argc, char **argv)
 		} else no_ui = 0;
 	}
 #endif
-	if (no_ui) exit(-1); /* Exit if no one UI was initialized */
+//	if (no_ui) exit(-1); /* Exit if no one UI was initialized */
 	
 	params.menu = build_menu(&params);
 	params.bootcfg = NULL;
 	scan_devices(&params);
 
-	if (-1 == fill_menu(&params)) {
-		exit(-1);
-	}
+	if (-1 == fill_menu(&params)) exit(-1);
 
 	/* Collect input devices */
-	inputs_init(&inputs, 8);
-	inputs_open(&inputs);
-	inputs_preprocess(&inputs);
+//	inputs_init(&inputs, 8);
+//	inputs_open(&inputs);
+//	inputs_preprocess(&inputs);
 
 	/* Run main event loop
 	 * Return values: <0 - error, >=0 - selected item id */
-	rc = do_main_loop(&params, &inputs);
+//	rc = do_main_loop(&params, &inputs);
+	rc = do_main_loop(&params);
 
 #ifdef USE_FBMENU
 	if (params.gui) {
@@ -1113,22 +1142,34 @@ int main(int argc, char **argv)
 		if (ttyfp != stdout) fclose(ttyfp);
 	}
 #endif
-	inputs_close(&inputs);
-	inputs_clean(&inputs);
+//	inputs_close(&inputs);
+//	inputs_clean(&inputs);
 
-	log_close(lg);
-	lg = NULL;
+//	log_close(lg);
+//	lg = NULL;
 
 	/* rc < 0 indicate error */
-	if (rc < 0) exit(rc);
+	if (rc < 0) {
+		log_msg(lg, "DEBUG: rc < 0 reached");
+		exit(rc);
+	}
 
 	menu_destroy(params.menu, 0);
+	log_msg(lg, "DEBUG: A_DEVICES - %d",A_DEVICES);
 
 	if (rc >= A_DEVICES) {
+		log_msg(lg, "DEBUG: start_kernel reached");
+		log_close(lg);
+		lg = NULL;
 		start_kernel(&params, rc - A_DEVICES);
 	}
 
 	/* When we reach this point then some error has occured */
 	DPRINTF("We should not reach this point!");
+
+	log_msg(lg, "DEBUG: Dead End!");
+	log_close(lg);
+	lg = NULL;
+
 	exit(-1);
 }

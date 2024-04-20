@@ -1,5 +1,5 @@
-#include "fb.h"
+//#include "fb.h"
 #include "util.h"
 
-FB fb;
+//FB fb;
 kx_text* lg;

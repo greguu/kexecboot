@@ -306,21 +306,21 @@ void setup_terminal(char *ttydev, int *echo_state, int mode)
 
 	tcsetattr(fileno(stdin), TCSANOW, &tc);
 
-	if (NULL == ttydev) {
-		log_msg(lg, "We have no tty");
-		return;
-	}
+//	if (NULL == ttydev) {
+//		log_msg(lg, "We have no tty");
+//		return;
+//	}
 
-	/* Switch cursor off/on */
-	if (NULL != ttydev) {
-		f = fopen(ttydev, "r+");
-		if (NULL == f) {
-			log_msg(lg, "Can't open '%s' for writing: %s", ttydev, ERRMSG);
-			return;
-		}
-	} else {
+//	/* Switch cursor off/on */
+//	if (NULL != ttydev) {
+//		f = fopen(ttydev, "r+");
+//		if (NULL == f) {
+//			log_msg(lg, "Can't open '%s' for writing: %s", ttydev, ERRMSG);
+//			return;
+//		}
+//	} else {
 		f = stdout;
-	}
+//	}
 
 	if (0 == mode) {	/* Show cursor */
 		fputs("\033[?25h", f);	/* Applied to *term */
@@ -328,7 +328,8 @@ void setup_terminal(char *ttydev, int *echo_state, int mode)
 		fputs("\033[?25l", f);
 	}
 
-	if (NULL != ttydev) fclose(f);
+//	if (NULL != ttydev) 
+	fclose(f);
 }
 
 
